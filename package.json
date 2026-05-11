@@ -1,0 +1,14 @@
+{
+  "name": "deadlock-simulator",
+  "version": "1.0.0",
+  "description": "Deadlock Detection and Recovery Simulator",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "nodemon": "^3.0.1"
+  }
+}

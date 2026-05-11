@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deadlock Simulator Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-effects">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
+    <div id="glow-sweep" class="glow-sweep"></div>
+    <div id="glow-sweep" class="glow-sweep"></div>
+
+    <!-- Hidden Header for PDF Export -->
+    <div id="print-only-header" class="print-only">
+        <div class="print-project-title">OS MINI PROJECT: DEADLOCK DETECTION & RECOVERY</div>
+        <div class="print-subtitle">Academic Session 2025-2026 | OS Laboratory</div>
+        
+        <div class="print-meta">
+            <div class="meta-item"><strong>GENERATE DATE:</strong> <span id="print-date"></span></div>
+            <div class="meta-item"><strong>ENVIRONMENT:</strong> <span id="print-env"></span></div>
+        </div>
+
+        <p class="print-intro">
+            This report summarizes the real-time simulation of a concurrent system's state. 
+            The system employs <strong>Banker's Algorithm</strong> for deadlock avoidance and <strong>Depth-First Search (DFS)</strong> on the Resource Allocation Graph for cycle detection. 
+            Recovery strategies demonstrated include Victim Termination and Resource Preemption.
+        </p>
+    </div>
+
+    <header class="app-header">
+        <div class="header-left">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <h1>DEADLOCK<span class="highlight">SIM</span></h1>
+                <button id="theme-toggle" class="theme-toggle" title="Toggle Light/Dark Mode">
+                    <span id="theme-icon">🌙</span>
+                </button>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="nav-links">
+                <button class="nav-btn-lite" onclick="openModal('theory-modal')">THEORY</button>
+                <button id="btn-about" class="nav-btn-lite">TEAM</button>
+                <button id="btn-project" class="nav-btn-lite">PROJECT</button>
+                
+                <div class="header-divider"></div>
+                
+                <div class="group ANALYSIS">
+                    <select id="preset-select" class="header-select" data-tooltip="SCENARIO: Choose between Safe, Unsafe, or Deadlock states.">
+                        <option value="" disabled selected>PRESETS</option>
+                        <option value="safe">SAFE</option>
+                        <option value="deadlock">DEADLOCK</option>
+                        <option value="unsafe">UNSAFE</option>
+                    </select>
+                    <button id="btn-bankers" class="btn-neon-blue" 
+                        data-tooltip="BANKER'S: O(m*n²) | Safety Check | Formula: Need <= Available">BANKER'S</button>
+                    <button id="btn-detect" class="btn-neon-yellow" 
+                        data-tooltip="RAG DFS: O(V+E) | Cycle Detection | Finds circular dependencies.">DETECT</button>
+                </div>
+
+                <div class="header-divider"></div>
+
+                <div class="group RECOVERY">
+                    <button id="btn-recover-abort" class="btn-mini-danger" disabled 
+                        data-tooltip="ABORT: O(k) | Drastic Recovery | Terminates all deadlocked processes.">ABORT</button>
+                    <button id="btn-recover-victim" class="btn-mini-danger" disabled 
+                        data-tooltip="VICTIM: O(1) | Selective Recovery | Kills least priority process in cycle.">VICTIM</button>
+                    <button id="btn-recover-preempt" class="btn-mini-danger" disabled 
+                        data-tooltip="PREEMPT: O(m) | Resource Preemption | Reclaims resources from high-allocation nodes.">PREEMPT</button>
+                </div>
+
+                <div class="header-divider"></div>
+
+                <div class="group SYSTEM">
+                    <button id="btn-checkpoint" class="btn-mini-info" 
+                        data-tooltip="SNAPSHOT: Saves current state to memory.">SAVE</button>
+                    <button id="btn-rollback" class="btn-mini-info" 
+                        data-tooltip="ROLLBACK: Reverts to last saved snapshot.">BACK</button>
+                    <button onclick="exportConfig()" class="btn-mini-info" 
+                        data-tooltip="EXPORT JSON: Download current matrices as a file.">💾</button>
+                    <button onclick="importConfig()" class="btn-mini-info" 
+                        data-tooltip="IMPORT JSON: Upload a previously saved config file.">📂</button>
+                    <button id="btn-reset" class="btn-mini-info" 
+                        data-tooltip="RESET: Factory reset matrices and graph.">RESET</button>
+                    <input type="file" id="import-input" style="display: none;" accept=".json">
+                </div>
+
+                <div class="header-divider"></div>
+
+                <button id="btn-export" class="btn-neon-green" title="Export Report">PDF</button>
+
+                <div class="header-divider"></div>
+
+                <div class="tutorial-switch" data-tooltip="TUTORIAL: OS theory and guidance mode.">
+                    <span class="switch-label">TUTORIAL</span>
+                    <label class="toggle-container">
+                        <input type="checkbox" id="tutorial-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard">
+        <!-- LEFT PANEL: DATA INPUT -->
+        <section class="panel glass-panel data-panel">
+            <div class="panel-header">
+                <h2>SYSTEM MATRICES</h2>
+            </div>
+            
+            <div class="panel-content scrollable">
+                <div class="matrix-section">
+                    <div class="matrix-title" data-tooltip="ALLOCATION Matrix: O(m*n) Storage | Current resources held by each process.">Allocation Matrix</div>
+                    <div id="allocation-matrix" class="matrix-grid"></div>
+                </div>
+
+                <div class="matrix-section">
+                    <div class="matrix-title" data-tooltip="MAX CLAIM: O(m*n) | Upper bound of resource demand for Banker's Check.">Maximum Claim (Max)</div>
+                    <div id="request-matrix" class="matrix-grid"></div>
+                </div>
+
+                <div class="matrix-section">
+                    <div class="matrix-title" data-tooltip="AVAILABLE Vector: O(n) | Formula: Total - Sum(Allocation). Current system pool.">Available Vector (Work)</div>
+                    <div id="available-vector" class="vector-grid"></div>
+                </div>
+
+                <div class="matrix-section">
+                    <div class="matrix-title" style="color: var(--accent-red)" data-tooltip="REQUEST Matrix: O(m*n) | Pending requests. Forms directed edges in RAG.">Current Request Matrix (RAG Edges)</div>
+                    <div id="request-matrix-active" class="matrix-grid"></div>
+                </div>
+
+                <div class="matrix-section read-only">
+                    <div class="matrix-title" data-tooltip="NEED Matrix: O(m*n) | Formula: Need = Max - Allocation. Potential demand.">Need Matrix (Potential Demand)</div>
+                    <div id="need-matrix" class="matrix-grid"></div>
+                </div>
+
+                <div class="matrix-section request-form-section">
+                    <div class="matrix-title" style="color: var(--accent-blue)" data-tooltip="REQUEST Processing: O(m*n²) | Safety verification via Banker's before granting.">Dynamic Resource Request</div>
+                    <div class="request-form">
+                        <select id="req-process" class="matrix-input select-process">
+                            <option value="0">P0</option>
+                            <option value="1">P1</option>
+                            <option value="2">P2</option>
+                            <option value="3">P3</option>
+                            <option value="4">P4</option>
+                        </select>
+                        <span class="req-label">req</span>
+                        <input type="number" id="req-r0" class="matrix-input" placeholder="A" min="0" value="0">
+                        <input type="number" id="req-r1" class="matrix-input" placeholder="B" min="0" value="0">
+                        <input type="number" id="req-r2" class="matrix-input" placeholder="C" min="0" value="0">
+                        <button id="btn-submit-req" class="btn small-btn primary-glow">Send</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CENTER PANEL: RAG VISUALIZER -->
+        <section class="panel glass-panel visual-panel">
+            <div class="panel-header space-between">
+                <h2>RESOURCE ALLOCATION GRAPH</h2>
+                <div class="legend">
+                    <span class="legend-item"><span class="circle process"></span> Process</span>
+                    <span class="legend-item"><span class="square resource"></span> Resource</span>
+                    <span class="legend-item"><span class="line alloc-line"></span> Allocation</span>
+                    <span class="legend-item"><span class="line req-line"></span> Request</span>
+                </div>
+            </div>
+            <div class="svg-container" id="svg-container">
+                <svg id="rag-svg" width="100%" height="100%"></svg>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: LOGS & SYSTEM STATE -->
+        <section class="panel glass-panel output-panel">
+            <div class="panel-header">
+                <h2>SYSTEM STATUS</h2>
+            </div>
+            
+            <div class="status-indicator" id="status-indicator">
+                <div class="status-dot"></div>
+                <span id="status-text">SYSTEM IDLE</span>
+            </div>
+
+            <!-- Resource Utilization Bars -->
+            <div class="resource-monitor">
+                <div class="monitor-header">RESOURCE UTILIZATION</div>
+                <div id="resource-bars" class="bars-container">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+
+            <div id="safe-sequence-display" class="safe-sequence-panel" style="display: none;">
+                <div class="seq-label">SAFE SEQUENCE FOUND</div>
+                <div id="sequence-path" class="seq-path"></div>
+            </div>
+
+            <div id="deadlock-cycle-display" class="deadlock-cycle-panel" style="display: none;">
+                <div class="cycle-label">DEADLOCK CYCLE DETECTED</div>
+                <div id="cycle-path" class="cycle-path"></div>
+            </div>
+
+            <div id="unsafe-explanation-display" class="unsafe-panel" style="display: none;">
+                <div class="unsafe-label">SYSTEM UNSAFE</div>
+                <p id="unsafe-reason">No process can proceed because available resources are insufficient to satisfy any remaining Need.</p>
+            </div>
+
+            <div class="logs-container">
+                <div class="panel-header slim">
+                    <h2>EXECUTION LOGS</h2>
+                </div>
+                <div class="terminal" id="terminal-output">
+                    <p class="sys-msg">[SYSTEM] Booting Simulator Core...</p>
+                    <p class="sys-msg">[SYSTEM] Neural Interface linked. Matrices loaded.</p>
+                </div>
+            </div>
+            <footer class="academic-footer">
+                <p>OS Laboratory | 2025-2026</p>
+            </footer>
+        </section>
+    </main>
+
+    <!-- Project Modal -->
+    <div id="project-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel project-modal">
+            <div class="modal-header">
+                <h2>PROJECT <span class="highlight">DOCUMENTATION</span></h2>
+                <button id="btn-close-project" class="close-icon">&times;</button>
+            </div>
+            <div class="modal-body scrollable">
+                <section class="doc-section">
+                    <h3>1. OVERVIEW</h3>
+                    <p>An interactive Deadlock Detection and Recovery Simulator that accepts resource allocation data, visualizes the Resource Allocation Graph (RAG), applies Banker's Algorithm for safety checking, detects deadlock cycles, and demonstrates recovery strategies.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h3>2. OBJECTIVES</h3>
+                    <ul>
+                        <li>Simulate dynamic resource allocation using Allocation and Request matrices.</li>
+                        <li>Construct and display the Resource Allocation Graph (RAG) graphically.</li>
+                        <li>Implement Banker's Algorithm to determine safe or unsafe state.</li>
+                        <li>Implement Deadlock Detection algorithm (cycle detection in RAG).</li>
+                        <li>Simulate Recovery strategies: process termination and resource preemption.</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h3>3. THEORY</h3>
+                    <p>Deadlock is a critical problem in concurrent operating systems. This simulator allows students to interact with various scenarios dynamically, observe transitions between safe/unsafe states, and test recovery approaches.</p>
+                    <div class="algo-briefs">
+                        <p><strong>Banker's Safety Algorithm:</strong> Determines if a safe sequence exists.</p>
+                        <p><strong>Resource Request Algorithm:</strong> Checks if a new request can be safely granted.</p>
+                        <p><strong>Cycle Detection:</strong> Uses DFS to find circular waits in the RAG.</p>
+                    </div>
+                </section>
+
+                <section class="doc-section">
+                    <h3>4. ALGORITHM CODES</h3>
+                    <div class="code-controls">
+                        <div class="control-group">
+                            <label>Algorithm:</label>
+                            <select id="algo-select" class="matrix-input lang-select algo-wide">
+                                <option value="bankers">Banker's Safety</option>
+                                <option value="request">Resource Request</option>
+                                <option value="detect">Cycle Detection (DFS)</option>
+                                <option value="recovery">Recovery Logic</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Language:</label>
+                            <select id="lang-select" class="matrix-input lang-select">
+                                <option value="c">C</option>
+                                <option value="cpp">C++</option>
+                                <option value="java">Java</option>
+                                <option value="python">Python</option>
+                                <option value="js">JavaScript</option>
+                                <option value="csharp">C#</option>
+                                <option value="ruby">Ruby</option>
+                                <option value="go">Go</option>
+                                <option value="rust">Rust</option>
+                                <option value="php">PHP</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="code-viewer">
+                        <pre><code id="code-display">Select an algorithm to see the code...</code></pre>
+                    </div>
+                </section>
+
+                <section class="doc-section">
+                    <h3>5. POWERED BY (TECH STACK)</h3>
+                    <div class="tech-stack">
+                        <div class="tech-item">
+                            <div class="tech-logo"><img src="https://skillicons.dev/icons?i=html" alt="HTML5"></div>
+                            <span>HTML5</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-logo"><img src="https://skillicons.dev/icons?i=css" alt="CSS3"></div>
+                            <span>CSS3</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-logo"><img src="https://skillicons.dev/icons?i=js" alt="JavaScript"></div>
+                            <span>JavaScript</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-logo"><img src="https://skillicons.dev/icons?i=nodejs" alt="Node.js"></div>
+                            <span>Node.js</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-logo"><img src="https://skillicons.dev/icons?i=express" alt="Express"></div>
+                            <span>Express.js</span>
+                        </div>
+                        <div class="tech-item">
+                            <div class="tech-logo"><img src="https://skillicons.dev/icons?i=svg" alt="SVG"></div>
+                            <span>SVG</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Developer Modal -->
+    <div id="about-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel developer-modal">
+            <div class="modal-header">
+                <h2>ABOUT <span class="highlight">DEVELOPERS</span></h2>
+                <button id="btn-close-about" class="close-icon">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="welcome-note">We are a dedicated team of sophomore engineering students currently in our 4th semester at the <strong>Don Bosco Institute of Technology (DBIT), Kurla</strong>. This project represents our collaborative effort to bridge the gap between theoretical Operating System concepts and interactive visual simulation.</p>
+                <div class="dev-list">
+                    <div class="dev-card">
+                        <div class="dev-avatar">AT</div>
+                        <div class="dev-info">
+                            <h3>AYUSH TODKAR</h3>
+                            <p>Roll No: 57 | COMPS B | Batch C</p>
+                        </div>
+                    </div>
+                    <div class="dev-card">
+                        <div class="dev-avatar">YS</div>
+                        <div class="dev-info">
+                            <h3>YAHIYA SIDDIQUI</h3>
+                            <p>Roll No: 49 | COMPS B | Batch C</p>
+                        </div>
+                    </div>
+                    <div class="dev-card">
+                        <div class="dev-avatar">KS</div>
+                        <div class="dev-info">
+                            <h3>KAJAL SHETTY</h3>
+                            <p>Roll No: 43 | COMPS B | Batch B</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <p class="project-tag">Mini Project 3 - Deadlock Simulator 2026</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Welcome Modal -->
+    <div id="welcome-modal" class="modal-overlay">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <div class="logo-icon"></div>
+                <h2>WELCOME TO <span class="highlight">DEADLOCKSIM</span></h2>
+            </div>
+            <div class="modal-body">
+                <div class="system-diagnostics">
+                    <div class="diag-item"><span>OS:</span> <span id="diag-os">Detecting...</span></div>
+                    <div id="live-clock" class="diag-clock">00:00:00</div>
+                    <div class="diag-item"><span>BROWSER:</span> <span id="diag-browser">Detecting...</span></div>
+                </div>
+
+                <p class="welcome-note"><strong>Hello, Engineer!</strong> 👋 You are about to enter the <strong>DeadlockSim Pro</strong> environment. This simulator provides a high-fidelity environment to analyze Resource Allocation Graphs and resolve Circular Waits.</p>
+                
+                <div class="boot-sequence">
+                    <div class="boot-line">INITIALIZING KERNEL INTERFACE... <span class="status-ok">DONE</span></div>
+                    <div class="boot-line">LOADING BANKER'S SAFETY MODULES... <span class="status-ok">READY</span></div>
+                    <div class="boot-line">ESTABLISHING NEURAL VISUALIZER... <span class="status-ok">ONLINE</span></div>
+                </div>
+
+                <div class="warning-box">
+                    <span class="warning-icon">⚠️</span>
+                    <p><strong>LAB NOTICE:</strong> Compliant with 2025-26 Lab Standards. Experimental recovery strategies (Preemption/Rollback) are enabled.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-start" class="btn primary-glow">
+                    <span class="btn-text">GET STARTED</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Windows 7 Aero Style Toast (Tutorial) -->
+    <div id="win7-toast" class="win7-toast" style="display: none;">
+        <div class="aero-glass">
+            <div class="win7-header">
+                <div class="win7-icon">ℹ️</div>
+                <div class="win7-title-text" id="win7-title">System Message</div>
+            </div>
+            <div class="win7-content">
+                <div class="win7-message" id="win7-message">Explanation text goes here.</div>
+            </div>
+            <div class="win7-progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- Theory Modal -->
+    <div id="theory-modal" class="modal-overlay">
+        <div class="modal-content glass-panel developer-modal">
+            <div class="modal-header">
+                <h2>ALGORITHM <span class="highlight">THEORY</span></h2>
+                <button class="close-icon" onclick="closeModal('theory-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="theory-scroll">
+                    <!-- SECTION 1: INTRODUCTION -->
+                    <section class="theory-section">
+                        <h3><i class="icon">🔍</i> 1. WHAT IS DEADLOCK?</h3>
+                        <p>Deadlock is a situation where a set of processes are blocked because each process is holding a resource and waiting for another resource held by some other process.</p>
+                        <div class="theory-note">
+                            <strong>Real-world Analogy:</strong> A 4-way traffic jam where every car is blocked by the car in front, and no one can move.
+                        </div>
+                    </section>
+
+                    <!-- SECTION 2: NECESSARY CONDITIONS -->
+                    <section class="theory-section">
+                        <h3><i class="icon">⚠️</i> 2. THE FOUR CONDITIONS (COFFMAN CONDITIONS)</h3>
+                        <p>Deadlock can <b>only</b> occur if all four of these are true simultaneously:</p>
+                        <ul class="theory-list">
+                            <li><strong>Mutual Exclusion:</strong> Only one process can use a resource at a time.</li>
+                            <li><strong>Hold and Wait:</strong> A process holds one resource while waiting for another.</li>
+                            <li><strong>No Preemption:</strong> Resources cannot be forcibly taken from a process.</li>
+                            <li><strong>Circular Wait:</strong> A closed chain of processes exists where each waits for the next.</li>
+                        </ul>
+                    </section>
+
+                    <!-- SECTION 3: BANKER'S ALGORITHM -->
+                    <section class="theory-section">
+                        <h3><i class="icon">🏦</i> 3. DEADLOCK AVOIDANCE (BANKER'S)</h3>
+                        <p>The Banker's Algorithm checks if granting a resource keeps the system in a <b>Safe State</b> by simulating future allocations.</p>
+                        <div class="theory-tech-box">
+                            <div class="tech-line"><span>Time Complexity:</span> <code>O(m * n²)</code></div>
+                            <div class="tech-line"><span>Key Formula:</span> <code>Need[i][j] = Max[i][j] - Allocation[i][j]</code></div>
+                            <div class="tech-line"><span>Safety Check:</span> <code>Request[i] <= Need[i]</code> AND <code>Request[i] <= Available</code></div>
+                        </div>
+                    </section>
+
+                    <!-- SECTION 4: DETECTION VIA RAG -->
+                    <section class="theory-section">
+                        <h3><i class="icon">🕸️</i> 4. DEADLOCK DETECTION (RAG/DFS)</h3>
+                        <p>In single-instance systems, a cycle in the Resource Allocation Graph (RAG) indicates a deadlock.</p>
+                        <div class="theory-tech-box">
+                            <div class="tech-line"><span>Algorithm:</span> <code>Depth First Search (DFS)</code></div>
+                            <div class="tech-line"><span>Time Complexity:</span> <code>O(V + E)</code></div>
+                            <div class="tech-line"><span>Wait-for Graph:</span> A condensed RAG showing only process dependencies.</div>
+                        </div>
+                    </section>
+
+                    <!-- SECTION 5: RECOVERY STRATEGIES -->
+                    <section class="theory-section">
+                        <h3><i class="icon">🛠️</i> 5. RECOVERY STRATEGIES</h3>
+                        <table class="theory-table">
+                            <thead>
+                                <tr>
+                                    <th>Method</th>
+                                    <th>Complexity</th>
+                                    <th>Approach</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Abort All</td>
+                                    <td>O(k)</td>
+                                    <td>Killing all deadlocked processes.</td>
+                                </tr>
+                                <tr>
+                                    <td>Victim Selection</td>
+                                    <td>O(1)</td>
+                                    <td>Killing the process with minimum priority.</td>
+                                </tr>
+                                <tr>
+                                    <td>Preemption</td>
+                                    <td>O(m)</td>
+                                    <td>Reclaiming resources with rollback support.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="system-footer">
+        <div class="footer-left">CORE_VER: 2.0.4 | STABLE</div>
+        <div class="footer-center">BUILT FOR OS MINI PROJECT 2026 | DBIT COMP B</div>
+        <div id="footer-load" class="footer-right">CPU LOAD: 12%</div>
+    </footer>
+
+    <script src="simulator.js"></script>
+</body>
+</html>
